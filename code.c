@@ -3,10 +3,62 @@
 #include <string.h>
 #include <dirent.h>
 #include <stdbool.h>
+#include <sys/stat.h>
+
+#define MAX_FILES 5 // the max number of files to track
 
 static char *vault_path = NULL;
 static char *fav_folder_one = "5-MainNotes";
 static char *fav_folder_two = "1-SourceMaterial";
+
+typedef struct {
+  char name [256];
+  time_t last_access;
+} FileEntry;
+
+void list_recent_files(const char *f_dir) {
+  struct dirent *entry;
+  DIR *dir = opendir(path);
+  if (!dir) {
+    perror("Unable to open directory.");
+    return;
+  }
+
+  FileEntry files[MAX_FILES];
+  int count = 0;
+
+  while((entry = readdir(dir)) != NULL) {
+    if (entry->d_type == DT_REG) {
+      //char full_path[512];
+      snprintf(full_path, sizeof(full_path) + sizeof(vault_path), f_dir, entry->d_name);
+
+      struct stat file_stat;
+      if (stat(full_path, &file_stat) == 0) {
+        strncpy(files[count].name, entry->d_name, sizeof(files[count].name) - 1);
+        files[count].last_access = file_stat.st_atime;
+        count ++;
+        if (count >= MAX_FILES) break;
+      }
+    }
+  }
+
+  closedir(dir);
+  
+  for (int i = 0; i < count - 1; i++) {
+    for (int j = i + 1; j < count; j++) {
+      if (files[i].last_access < files[j].last_access) {
+        FileEntry temp = files[i];
+        files[i] = files[j];
+        files[j] = temp;
+      }
+    }
+  }
+
+  printf("Recently accessed files: \n");
+  for (int i = 0; i < count; i++) {
+    printf("[FILE] %s (Last accessed: %ld)\n", i+1, files[i].name, files[i].last_access);
+  }
+}
 
 void init_vault_path() {
   const char *home = getenv("HOME");
@@ -79,6 +131,7 @@ int main() {
         printf("You didn't choose a valid option");
     }
   }
+  list_recent_files(vault_path);
   cleanup();
   return 0;
 }
