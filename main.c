@@ -16,49 +16,71 @@ typedef struct {
   time_t last_access;
 } FileEntry;
 
+FileEntry files[MAX_FILES];
+int count = 0;
+
+void update_recent_files(const char *filepath, time_t access_time){
+  if (count < MAX_FILES) {
+    strncpy(files[count].name, filepath, sizeof(files[count].name) - 1);
+    files[count].name[sizeof(files[count].name) - 1] = '\0'; // Ensure null termination
+    files[count].last_access = access_time;
+    count++;
+  } else{
+    int oldest_index = 0;
+    for (int i = 1; i < MAX_FILES; i++) {
+      if (files[i].last_access < files[oldest_index].last_access) {
+        oldest_index = i;
+      }
+    }
+
+    if (access_time > files[oldest_index].last_access) {
+      strncpy(files[oldest_index].name, filepath, sizeof(files[oldest_index].name) - 1);
+      files[oldest_index].name[sizeof(files[oldest_index].name) - 1] = '\0';
+      files[oldest_index].last_access = access_time;
+    }
+  }
+}
+
 void list_recent_files(const char *f_dir) {
-    struct dirent *entry;
-    DIR *dir = opendir(f_dir);
-    if (!dir) {
-        perror("Unable to open directory.");
-        return;
+  struct dirent *entry;
+  DIR *dir = opendir(f_dir);
+  if (!dir) {
+      perror("Unable to open directory.");
+      return;
+  }
+
+  while ((entry = readdir(dir)) != NULL) {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+      continue;
     }
 
-    FileEntry files[MAX_FILES];
-    int count = 0;
+    char full_path[512];
+    snprintf(full_path, sizeof(full_path), "%s/%s", f_dir, entry->d_name);
 
-    while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_REG) {
-            char full_path[512];
-            snprintf(full_path, sizeof(full_path), "%s/%s", f_dir, entry->d_name);
-
-            struct stat file_stat;
-            if (stat(full_path, &file_stat) == 0) {
-                strncpy(files[count].name, entry->d_name, sizeof(files[count].name) - 1);
-                files[count].name[sizeof(files[count].name) - 1] = '\0'; // Ensure null termination
-                files[count].last_access = file_stat.st_atime;
-                count++;              
-                if (count >= MAX_FILES) break;
-            }
-        }
+    struct stat file_stat;
+    char subdir[512];
+    if (stat(full_path, &file_stat) == 0) {
+      if(S_ISREG(file_stat.st_mode)) {
+        update_recent_files(full_path, file_stat.st_atime);
+      } else if (S_ISDIR(file_stat.st_mode)) {
+        list_recent_files(full_path);
+      }
     }
-    closedir(dir);
+  }
+  closedir(dir);
+}
 
-    // Sorting by last accessed time (Descending)
-    for (int i = 0; i < count - 1; i++) {
-        for (int j = i + 1; j < count; j++) {
-            if (files[i].last_access < files[j].last_access) {
-                FileEntry temp = files[i];
-                files[i] = files[j];
-                files[j] = temp;
-            }
-        }
-    }
+int compare_files(const void *a, const void *b) {
+  return ((FileEntry *)b)->last_access - ((FileEntry *)a)->last_access;
+}
 
-    printf("\nRecently accessed files in %s:\n", f_dir);
-    for (int i = 0; i < count; i++) {
-        printf("%d. [FILE] %s (Last accessed: %ld)\n", i + 1, files[i].name, files[i].last_access);
-    }
+void display_recent_files() {
+  qsort(files, count, sizeof(FileEntry), compare_files);
+
+  printf("\nLast %d accesed files:\n", MAX_FILES);
+  for(int i = 0; i < count; i++) {
+    printf("%d. %s\n", i+1, files[i].name);
+  }
 }
 
 void init_vault_path() {
@@ -116,9 +138,12 @@ int main() {
   while (true) {
     printf("Welcome back!\n"); 
     list_fav_dirs(vault_path);
-    list_recent_files(main_notes_path);
 
-    printf("Select an option: \n");
+    // List your accessed files
+    list_recent_files(vault_path);
+    display_recent_files();
+
+    printf("\nSelect an option: \n");
     printf("1: open first favourite folder\n");
     printf("0: quit\n");
     scanf("%d", &action);
