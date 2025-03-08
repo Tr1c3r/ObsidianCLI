@@ -10,6 +10,7 @@
 static char *vault_path = NULL;
 static char *fav_folder_one = "5-MainNotes";
 static char *fav_folder_two = "1-SourceMaterial";
+static char *skip_folder = "Kaizen Journaling";
 
 typedef struct {
   char name [256];
@@ -50,7 +51,7 @@ void list_recent_files(const char *f_dir) {
   }
 
   while ((entry = readdir(dir)) != NULL) {
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, skip_folder) == 0) {
       continue;
     }
 
@@ -59,6 +60,7 @@ void list_recent_files(const char *f_dir) {
 
     struct stat file_stat;
     char subdir[512];
+
     if (stat(full_path, &file_stat) == 0) {
       if(S_ISREG(file_stat.st_mode)) {
         update_recent_files(full_path, file_stat.st_atime);
@@ -129,8 +131,8 @@ void list_fav_dirs(const char *path) {
 }
 
 int main() {
-  int action;
   init_vault_path();
+  int action;
 
   char main_notes_path[512];
   snprintf(main_notes_path, sizeof(main_notes_path), "%s/%s", vault_path, fav_folder_one);
@@ -140,7 +142,7 @@ int main() {
     list_fav_dirs(vault_path);
 
     // List your accessed files
-    list_recent_files(vault_path);
+    list_recent_files(main_notes_path);
     display_recent_files();
 
     printf("\nSelect an option: \n");
