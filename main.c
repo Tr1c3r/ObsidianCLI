@@ -130,6 +130,25 @@ void list_fav_dirs(const char *path) {
 
 }
 
+int get_user_input() {
+  int action;
+  printf("\nSelect an option: \n");
+  printf("1: open first favourite folder\n");
+  printf("0: quit\n");
+  printf(">");
+
+  if (scanf("%d", &action) == 1) {
+    if (action == 0 || action == 1) {
+      return action;
+    } else {
+      printf("Invalid option. Try again\n");
+    }
+  } else {
+    printf("Invalid input, try with a number.\n");
+    while(getchar() != '\n');
+  }
+}
+
 int main() {
   init_vault_path();
   int action;
@@ -141,14 +160,11 @@ int main() {
     printf("Welcome back!\n"); 
     list_fav_dirs(vault_path);
 
+    action = get_user_input();
+
     // List your accessed files
     list_recent_files(main_notes_path);
     display_recent_files();
-
-    printf("\nSelect an option: \n");
-    printf("1: open first favourite folder\n");
-    printf("0: quit\n");
-    scanf("%d", &action);
 
     switch(action){
       case 1:
@@ -162,10 +178,7 @@ int main() {
         exit(0);
       default:
         printf("You didn't choose a valid option");
-        cleanup();
-        break;
     }
   }
-  cleanup();
   return 0;
 }
