@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 
 #define MAX_FILES 5 // the max number of files to track
+#define EXTENSION ".md"
 
 static char *vault_path = NULL;
 static char *fav_folder_one = "5-MainNotes";
@@ -19,6 +20,11 @@ typedef struct {
 
 FileEntry files[MAX_FILES];
 int count = 0;
+
+bool is_md_file(const char *filename) {
+  const char *ext = strrchr(filename, '.');
+  return (ext && strcmp(ext, EXTENSION) == 0);
+}
 
 void update_recent_files(const char *filepath, time_t access_time){
   if (count < MAX_FILES) {
@@ -62,7 +68,7 @@ void list_recent_files(const char *f_dir) {
     char subdir[512];
 
     if (stat(full_path, &file_stat) == 0) {
-      if(S_ISREG(file_stat.st_mode)) {
+      if(S_ISREG(file_stat.st_mode) && is_md_file(entry->d_name)) {
         update_recent_files(full_path, file_stat.st_atime);
       } else if (S_ISDIR(file_stat.st_mode)) {
         list_recent_files(full_path);
@@ -132,20 +138,22 @@ void list_fav_dirs(const char *path) {
 
 int get_user_input() {
   int action;
+
   printf("\nSelect an option: \n");
   printf("1: open first favourite folder\n");
   printf("0: quit\n");
-  printf(">");
+  printf("> ");
 
-  if (scanf("%d", &action) == 1) {
-    if (action == 0 || action == 1) {
-      return action;
-    } else {
-      printf("Invalid option. Try again\n");
-    }
-  } else {
+  if (scanf("%d", &action) != 1) {
     printf("Invalid input, try with a number.\n");
     while(getchar() != '\n');
+    return -1;
+  }
+  if (action == 0 || action == 1) {
+    return action;
+  } else {
+    printf("Invalid option. Try again\n");
+    return -1;
   }
 }
 
@@ -160,11 +168,16 @@ int main() {
     printf("Welcome back!\n"); 
     list_fav_dirs(vault_path);
 
+    // List your accessed files
+    // list_recent_files(main_notes_path);
+    list_recent_files(vault_path);
+    display_recent_files();
+
     action = get_user_input();
 
-    // List your accessed files
-    list_recent_files(main_notes_path);
-    display_recent_files();
+    if (action == -1) {
+      continue;
+    }
 
     switch(action){
       case 1:
