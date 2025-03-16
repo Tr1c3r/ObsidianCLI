@@ -157,6 +157,22 @@ int get_user_input() {
   }
 }
 
+void create_file(char *nufile, size_t size) {
+  printf("Insert name of the file: ");
+  if (fgets(nufile, size, stdin) == NULL) {
+    printf("Error reading file. Try again\n");
+    return;
+  }
+
+  nufile[strcspn(nufile, "\n")] = 0;
+
+  char temp[256];
+  snprintf(temp, sizeof(temp), "nvim %s.md", nufile);
+
+  strncpy(nufile, temp, size - 1);
+  nufile[size - 1] = '\0';
+}
+
 int main() {
   init_vault_path();
   int action;
@@ -182,8 +198,12 @@ int main() {
     switch(action){
       case 1:
       //open a folder
-        printf("You opened a folder.\n");
-        break;
+        char nufile[256];
+        create_file(nufile, sizeof(nufile));
+        printf("Running command: %s\n", nufile);
+        system(nufile);
+        cleanup();
+        exit(0);
       case 0:
         system("clear");
         printf("Good luck!\n");
