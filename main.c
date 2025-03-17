@@ -9,12 +9,12 @@
 #define EXTENSION ".md"
 
 static char *vault_path = NULL;
-static char *fav_folder_one = "5-MainNotes";
-static char *fav_folder_two = "1-SourceMaterial";
+static char *main_notes_path = NULL;
+static char *fav_folder_one = "5-MainNotes";  // Keep it as a string
 static char *skip_folder = "Kaizen Journaling";
 
 typedef struct {
-  char name [256];
+  char name[256];
   time_t last_access;
 } FileEntry;
 
@@ -32,7 +32,7 @@ void update_recent_files(const char *filepath, time_t access_time){
     files[count].name[sizeof(files[count].name) - 1] = '\0'; // Ensure null termination
     files[count].last_access = access_time;
     count++;
-  } else{
+  } else {
     int oldest_index = 0;
     for (int i = 1; i < MAX_FILES; i++) {
       if (files[i].last_access < files[oldest_index].last_access) {
@@ -57,15 +57,14 @@ void list_recent_files(const char *f_dir) {
   }
 
   while ((entry = readdir(dir)) != NULL) {
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, skip_folder) == 0) {
-      continue;
-    }
-
     char full_path[512];
     snprintf(full_path, sizeof(full_path), "%s/%s", f_dir, entry->d_name);
 
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || strstr(full_path, skip_folder) != NULL) {
+      continue;
+    }
+
     struct stat file_stat;
-    char subdir[512];
 
     if (stat(full_path, &file_stat) == 0) {
       if(S_ISREG(file_stat.st_mode) && is_md_file(entry->d_name)) {
@@ -79,13 +78,13 @@ void list_recent_files(const char *f_dir) {
 }
 
 int compare_files(const void *a, const void *b) {
-  return ((FileEntry *)b)->last_access - ((FileEntry *)a)->last_access;
+  return (int)(((FileEntry *)b)->last_access - ((FileEntry *)a)->last_access);
 }
 
 void display_recent_files() {
   qsort(files, count, sizeof(FileEntry), compare_files);
 
-  printf("\nLast %d accesed files:\n", MAX_FILES);
+  printf("\nLast %d accessed files:\n", MAX_FILES);
   for(int i = 0; i < count; i++) {
     printf("%d. %s\n", i+1, files[i].name);
   }
@@ -98,49 +97,30 @@ void init_vault_path() {
     exit(1);
   }
 
-  // here you would insert your REAL obsidian vault directory.
+  // Here you allocate memory for vault_path and main_notes_path, but don't touch fav_folder_one
   size_t len = strlen(home) + strlen("/obsidian/scnd-brain/") + 1;
   vault_path = malloc(len);
-  if (!vault_path) {
+  size_t len2 = strlen(home) + strlen("/obsidian/scnd-brain/") + strlen(fav_folder_one) + 1;
+  main_notes_path = malloc(len2);
+  if (!vault_path || !main_notes_path) {
     fprintf(stderr, "Memory allocation failed.");
     exit(1);
   }
 
   snprintf(vault_path, len, "%s/obsidian/scnd-brain/", home);
+  snprintf(main_notes_path, len2, "%s/obsidian/scnd-brain/%s", home, fav_folder_one);
 }
 
 void cleanup() {
   free(vault_path);
-}
-
-void list_fav_dirs(const char *path) {
-  struct dirent *entry;
-  DIR *dir = opendir(path);
-
-  if (!dir) {
-    perror("Unable to find directory.");
-    return;
-  }
-
-  printf("Your favourite vault folders: \n");
-  while ((entry = readdir(dir)) != NULL) {
-    // Enter as many folders as you want to show in this section
-    // Rememeber to add the variable at the beginning or hard type it
-    if (entry->d_type == DT_DIR &&
-    (strcmp(entry->d_name, fav_folder_one) == 0 || strcmp(entry->d_name, fav_folder_two) == 0)) {
-      printf("[DIR] %s\n", entry->d_name);
-    }
-  }
-
-  closedir(dir);
-
+  free(main_notes_path);
 }
 
 int get_user_input() {
   int action;
 
   printf("\nSelect an option: \n");
-  printf("1: open first favourite folder\n");
+  printf("1: create a new file\n");
   printf("0: quit\n");
   printf("> ");
 
@@ -166,10 +146,11 @@ void create_file(char *nufile, size_t size) {
 
   nufile[strcspn(nufile, "\n")] = 0;
 
-  char temp[256];
-  snprintf(temp, sizeof(temp), "nvim %s.md", nufile);
+  // Create the file in the correct path without modifying fav_folder_one directly
+  char command[256]; 
+  snprintf(command, sizeof(command), "nvim %s/%s.md", main_notes_path, nufile);
 
-  strncpy(nufile, temp, size - 1);
+  strncpy(nufile, command, size - 1);
   nufile[size - 1] = '\0';
 }
 
@@ -177,15 +158,9 @@ int main() {
   init_vault_path();
   int action;
 
-  char main_notes_path[512];
-  snprintf(main_notes_path, sizeof(main_notes_path), "%s/%s", vault_path, fav_folder_one);
-
   while (true) {
-    printf("Welcome back!\n"); 
-    list_fav_dirs(vault_path);
+    printf("Welcome back!\n");
 
-    // List your accessed files
-    // list_recent_files(main_notes_path);
     list_recent_files(vault_path);
     display_recent_files();
 
@@ -197,7 +172,7 @@ int main() {
 
     switch(action){
       case 1:
-      //open a folder
+        // Open a folder
         char nufile[256];
         create_file(nufile, sizeof(nufile));
         printf("Running command: %s\n", nufile);
@@ -212,6 +187,10 @@ int main() {
       default:
         printf("You didn't choose a valid option");
     }
+
+    cleanup();
+    init_vault_path();  // Re-initialize paths before continuing the loop
   }
   return 0;
 }
+
